@@ -150,8 +150,8 @@ a {
 }
 
 .line-field__echo {
-  stroke: rgba(10, 10, 10, 0.09);
-  stroke-width: 0.8;
+  stroke: rgba(10, 10, 10, 0.12);
+  stroke-width: 0.85;
 }
 
 .ripple-field {

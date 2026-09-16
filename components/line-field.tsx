@@ -49,7 +49,7 @@ export function LineField({ route }: LineFieldProps) {
       previousTime = time;
       const target = shapeForScroll(route, scrollProgress);
       const primaryEasing = reduceMotion ? 1 : 1 - Math.exp(-delta / 130);
-      const echoEasing = reduceMotion ? 1 : 1 - Math.exp(-delta / 310);
+      const echoEasing = reduceMotion ? 1 : 1 - Math.exp(-delta / 440);
 
       currentRef.current = extendLineEnds(
         currentRef.current.map((point, index) => {

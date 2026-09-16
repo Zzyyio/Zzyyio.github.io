@@ -17,7 +17,7 @@ Before changing product code, read:
 - Each route must contain multiple substantial sections and extend beyond one viewport.
 - Navigation, titles, copy, images, and project links remain semantic DOM content. Never draw essential text inside Canvas or SVG.
 - The persistent visual layer consists of an SVG background line plus a transparent WebGL ripple canvas.
-- The background line must visibly change shape when the route changes and while the page scrolls vertically.
+- The background line must visibly change shape when the route changes and while the page scrolls vertically; its top, middle, and bottom states should be distinguishable at a glance.
 - Both ends of the background line must remain beyond the viewport with an overscan margin. No endpoint may become visible during initial render, scrolling, route interpolation, or responsive resizing.
 - On fine pointers, ripple filaments are generated whenever the pointer moves; no press is required. They originate on both sides of the movement direction, disperse, bend toward the current sampled background curve, align with it, and disappear as they merge.
 - Preserve complete navigation and readable content when WebGL is unavailable.
