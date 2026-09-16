@@ -26,6 +26,23 @@ type DotParticle = {
   seed: number;
 };
 
+// Primary tuning entry for the dot wake. Values are in CSS pixels or seconds.
+const RIPPLE_TUNING = {
+  dotsPerSide: 2,
+  maximumParticles: 240,
+  emissionDistance: 6,
+  emissionStepDistance: 8,
+  maximumEmissionSteps: 3,
+  minimumPointSize: 1.15,
+  pointSizeVariation: 2.15,
+  minimumLifetime: 1.55,
+  lifetimeVariation: 0.55,
+  peakAlpha: 0.62,
+  absorptionDistance: 24,
+  maximumAttraction: 0.021,
+  maximumPixelRatio: 1.5,
+} as const;
+
 const vertexShaderSource = `#version 300 es
   in vec2 a_position;
   in float a_size;
@@ -178,7 +195,10 @@ export function RippleField({ route }: RippleFieldProps) {
     };
 
     const resize = () => {
-      pixelRatio = Math.min(window.devicePixelRatio || 1, 1.5);
+      pixelRatio = Math.min(
+        window.devicePixelRatio || 1,
+        RIPPLE_TUNING.maximumPixelRatio,
+      );
       width = window.innerWidth;
       height = window.innerHeight;
       canvas.width = Math.round(width * pixelRatio);
@@ -205,12 +225,14 @@ export function RippleField({ route }: RippleFieldProps) {
       const speed = clamp(movement * 0.045, 0.35, 1.15);
 
       ([-1, 1] as const).forEach((side) => {
-        for (let index = 0; index < 2; index += 1) {
+        for (let index = 0; index < RIPPLE_TUNING.dotsPerSide; index += 1) {
           const outward = 2 + Math.random() * 7;
           const trail = Math.random() * 11;
           const tangentJitter = (Math.random() - 0.5) * 6;
           const outwardVelocity = 0.62 + Math.random() * 1.12 + speed * 0.4;
-          const radius = 1.15 + Math.random() * 2.15;
+          const radius =
+            RIPPLE_TUNING.minimumPointSize +
+            Math.random() * RIPPLE_TUNING.pointSizeVariation;
 
           particles.push({
             x:
@@ -228,7 +250,9 @@ export function RippleField({ route }: RippleFieldProps) {
               normalY * side * outwardVelocity -
               tangentY * (0.08 + Math.random() * 0.22),
             age: 0,
-            life: 1.55 + Math.random() * 0.55,
+            life:
+              RIPPLE_TUNING.minimumLifetime +
+              Math.random() * RIPPLE_TUNING.lifetimeVariation,
             radius,
             size: radius,
             alpha: 0,
@@ -237,8 +261,11 @@ export function RippleField({ route }: RippleFieldProps) {
         }
       });
 
-      if (particles.length > 240) {
-        particles.splice(0, particles.length - 240);
+      if (particles.length > RIPPLE_TUNING.maximumParticles) {
+        particles.splice(
+          0,
+          particles.length - RIPPLE_TUNING.maximumParticles,
+        );
       }
     };
 
@@ -270,8 +297,14 @@ export function RippleField({ route }: RippleFieldProps) {
       const emitDistance = Math.hypot(emitDx, emitDy);
       const canEmit = event.pointerType !== "touch" || pointer.down;
 
-      if (canEmit && emitDistance >= 6) {
-        const steps = Math.min(3, Math.max(1, Math.floor(emitDistance / 8)));
+      if (canEmit && emitDistance >= RIPPLE_TUNING.emissionDistance) {
+        const steps = Math.min(
+          RIPPLE_TUNING.maximumEmissionSteps,
+          Math.max(
+            1,
+            Math.floor(emitDistance / RIPPLE_TUNING.emissionStepDistance),
+          ),
+        );
         for (let step = 1; step <= steps; step += 1) {
           const progress = step / steps;
           emitDotWake(
@@ -310,7 +343,9 @@ export function RippleField({ route }: RippleFieldProps) {
         const lifeProgress = particle.age / particle.life;
         const attraction = smoothstep(0.14, 0.86, lifeProgress);
         const attractor = nearestSample(particle, samples, width, height);
-        const spring = 0.00055 + attraction * attraction * 0.021;
+        const spring =
+          0.00055 +
+          attraction * attraction * RIPPLE_TUNING.maximumAttraction;
         const turbulence =
           Math.sin(particle.age * 7 + particle.seed) *
           (1 - attraction) *
@@ -331,8 +366,15 @@ export function RippleField({ route }: RippleFieldProps) {
         const fadeIn = smoothstep(0, 0.055, lifeProgress);
         const fadeOut = 1 - smoothstep(0.67, 1, lifeProgress);
         const absorption =
-          lifeProgress < 0.42 ? 1 : clamp(attractor.distance / 24, 0.04, 1);
-        particle.alpha = 0.62 * fadeIn * fadeOut * absorption;
+          lifeProgress < 0.42
+            ? 1
+            : clamp(
+                attractor.distance / RIPPLE_TUNING.absorptionDistance,
+                0.04,
+                1,
+              );
+        particle.alpha =
+          RIPPLE_TUNING.peakAlpha * fadeIn * fadeOut * absorption;
         particle.size = Math.max(
           0.55,
           particle.radius *
