@@ -128,8 +128,9 @@ export function shapeForScroll(
   progress: number,
 ): NormalizedPoint[] {
   const scroll = clamp(progress, 0, 1);
-  const drift = scroll * 0.14;
+  const drift = scroll * 0.27;
   const bend = Math.sin(scroll * Math.PI);
+  const pulse = Math.sin(scroll * Math.PI * 2);
 
   const deformed = routeShapes[route].map((point, index, points) => {
     const position = index / Math.max(1, points.length - 1);
@@ -140,9 +141,14 @@ export function shapeForScroll(
     return {
       x:
         point.x +
-        wave * envelope * bend * 0.035 +
-        (scroll - 0.5) * (point.y - 0.5) * 0.045,
-      y: point.y - drift + counterWave * envelope * bend * 0.026,
+        wave * envelope * bend * 0.065 +
+        (scroll - 0.5) * (point.y - 0.5) * 0.085 +
+        pulse * envelope * 0.018,
+      y:
+        point.y -
+        drift +
+        counterWave * envelope * bend * 0.052 +
+        pulse * (position - 0.5) * 0.035,
     };
   });
 
