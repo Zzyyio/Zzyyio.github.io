@@ -69,28 +69,61 @@ type CompositionAnchors = {
 const sectionCompositions: Array<CompositionAnchors | null> = [
   null,
   {
-    start: { x: 0.16, y: -0.18 },
-    end: { x: 1.18, y: 0.7 },
-    bow: { x: 0.08, y: 0.055 },
+    start: { x: -0.18, y: 0.36 },
+    end: { x: 1.18, y: 0.64 },
+    bow: { x: 0.035, y: -0.045 },
   },
   {
-    start: { x: 1.18, y: 0.2 },
-    end: { x: 0.7, y: 1.18 },
-    bow: { x: -0.11, y: 0.075 },
+    start: { x: 0.36, y: -0.18 },
+    end: { x: 0.66, y: 1.18 },
+    bow: { x: -0.045, y: 0.03 },
   },
   {
-    start: { x: 0.76, y: -0.18 },
-    end: { x: -0.18, y: 0.68 },
-    bow: { x: -0.085, y: -0.065 },
+    start: { x: 1.18, y: 0.38 },
+    end: { x: -0.18, y: 0.62 },
+    bow: { x: 0.04, y: 0.045 },
   },
 ];
+
+function centerInterior(points: NormalizedPoint[]): NormalizedPoint[] {
+  if (points.length < 3) return points;
+
+  let totalX = 0;
+  let totalY = 0;
+  let totalEnvelope = 0;
+
+  for (let index = 1; index < points.length - 1; index += 1) {
+    const position = index / (points.length - 1);
+    totalX += points[index].x;
+    totalY += points[index].y;
+    totalEnvelope += Math.sin(position * Math.PI);
+  }
+
+  const interiorCount = points.length - 2;
+  const averageX = totalX / interiorCount;
+  const averageY = totalY / interiorCount;
+  const averageEnvelope = totalEnvelope / interiorCount;
+  const correctionX = clamp((0.5 - averageX) / averageEnvelope, -0.14, 0.14);
+  const correctionY = clamp((0.5 - averageY) / averageEnvelope, -0.14, 0.14);
+
+  return points.map((point, index) => {
+    const position = index / (points.length - 1);
+    const envelope = Math.sin(position * Math.PI);
+    return {
+      x: point.x + correctionX * envelope,
+      y: point.y + correctionY * envelope,
+    };
+  });
+}
 
 function shapeForSection(
   points: NormalizedPoint[],
   sectionIndex: number,
 ): NormalizedPoint[] {
   const composition = sectionCompositions[sectionIndex % sectionCompositions.length];
-  if (!composition) return points.map((point) => ({ ...point }));
+  if (!composition) {
+    return centerInterior(points.map((point) => ({ ...point })));
+  }
 
   const lastIndex = points.length - 1;
   const startDelta = {
@@ -102,7 +135,7 @@ function shapeForSection(
     y: composition.end.y - points[lastIndex].y,
   };
 
-  return points.map((point, index) => {
+  const transformed = points.map((point, index) => {
     const position = index / Math.max(1, lastIndex);
     const startWeight = Math.pow(1 - position, 1.45);
     const endWeight = Math.pow(position, 1.45);
@@ -121,6 +154,8 @@ function shapeForSection(
         composition.bow.y * envelope,
     };
   });
+
+  return centerInterior(transformed);
 }
 
 function extendEndpointOutside(
@@ -193,7 +228,7 @@ export function shapeForScroll(
 ): NormalizedPoint[] {
   const scroll = clamp(progress, 0, 1);
   const sectionShape = shapeForSection(routeShapes[route], sectionIndex);
-  const drift = scroll * 0.27;
+  const drift = (scroll - 0.5) * 0.12;
   const bend = Math.sin(scroll * Math.PI);
   const pulse = Math.sin(scroll * Math.PI * 2);
 
