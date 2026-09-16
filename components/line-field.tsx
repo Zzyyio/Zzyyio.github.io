@@ -30,6 +30,12 @@ export function LineField({ route }: LineFieldProps) {
     let frame = 0;
     let previousTime = 0;
     let scrollProgress = 0;
+    let sectionIndex = 0;
+    const sections = Array.from(
+      document.querySelectorAll<HTMLElement>(
+        "main > section, main > .project-list > article",
+      ),
+    );
     const reduceMotion = window.matchMedia(
       "(prefers-reduced-motion: reduce)",
     ).matches;
@@ -40,6 +46,17 @@ export function LineField({ route }: LineFieldProps) {
         document.documentElement.scrollHeight - window.innerHeight,
       );
       scrollProgress = window.scrollY / scrollable;
+
+      const viewportCenter = window.scrollY + window.innerHeight * 0.5;
+      let nextSectionIndex = 0;
+      for (let index = 1; index < sections.length; index += 1) {
+        if (viewportCenter >= sections[index].offsetTop) {
+          nextSectionIndex = index;
+        } else {
+          break;
+        }
+      }
+      sectionIndex = nextSectionIndex;
     };
 
     readScroll();
@@ -47,16 +64,21 @@ export function LineField({ route }: LineFieldProps) {
     const animate = (time: number) => {
       const delta = previousTime === 0 ? 16 : Math.min(48, time - previousTime);
       previousTime = time;
-      const target = shapeForScroll(route, scrollProgress);
-      const primaryEasing = reduceMotion ? 1 : 1 - Math.exp(-delta / 130);
+      const target = shapeForScroll(route, scrollProgress, sectionIndex);
       const echoEasing = reduceMotion ? 1 : 1 - Math.exp(-delta / 440);
 
       currentRef.current = extendLineEnds(
-        currentRef.current.map((point, index) => {
+        currentRef.current.map((point, index, points) => {
           const next = target[index];
+          const position = index / Math.max(1, points.length - 1);
+          const edgeInfluence = Math.abs(position - 0.5) * 2;
+          const responseTime = 150 + (1 - edgeInfluence) * 120;
+          const pointEasing = reduceMotion
+            ? 1
+            : 1 - Math.exp(-delta / responseTime);
           return {
-            x: point.x + (next.x - point.x) * primaryEasing,
-            y: point.y + (next.y - point.y) * primaryEasing,
+            x: point.x + (next.x - point.x) * pointEasing,
+            y: point.y + (next.y - point.y) * pointEasing,
           };
         }),
       );

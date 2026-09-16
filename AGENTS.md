@@ -18,6 +18,8 @@ Before changing product code, read:
 - Navigation, titles, copy, images, and project links remain semantic DOM content. Never draw essential text inside Canvas or SVG.
 - The persistent visual layer consists of an SVG background line plus a transparent WebGL ripple canvas.
 - The background line must visibly change shape when the route changes and while the page scrolls vertically; its top, middle, and bottom states should be distinguishable at a glance.
+- When the viewport center crosses a semantic section boundary, trigger a self-completing line-composition animation. Do not derive its in-between state from scroll position or alter native scrolling.
+- Build section changes by moving the two off-screen endpoint anchors and propagating their displacement through the intermediate control points. Do not mirror or reverse the complete path.
 - Both ends of the background line must remain beyond the viewport with an overscan margin. No endpoint may become visible during initial render, scrolling, route interpolation, or responsive resizing.
 - On fine pointers, dot ripples are generated whenever the pointer moves; no press is required. They begin as a restrained wake around both sides of the movement direction, disperse, curve toward the current sampled background line, and disappear as they merge.
 - Preserve complete navigation and readable content when WebGL is unavailable.
