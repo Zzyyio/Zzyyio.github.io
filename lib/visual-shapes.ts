@@ -60,6 +60,69 @@ function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(maximum, Math.max(minimum, value));
 }
 
+type CompositionAnchors = {
+  start: NormalizedPoint;
+  end: NormalizedPoint;
+  bow: NormalizedPoint;
+};
+
+const sectionCompositions: Array<CompositionAnchors | null> = [
+  null,
+  {
+    start: { x: 0.16, y: -0.18 },
+    end: { x: 1.18, y: 0.7 },
+    bow: { x: 0.08, y: 0.055 },
+  },
+  {
+    start: { x: 1.18, y: 0.2 },
+    end: { x: 0.7, y: 1.18 },
+    bow: { x: -0.11, y: 0.075 },
+  },
+  {
+    start: { x: 0.76, y: -0.18 },
+    end: { x: -0.18, y: 0.68 },
+    bow: { x: -0.085, y: -0.065 },
+  },
+];
+
+function shapeForSection(
+  points: NormalizedPoint[],
+  sectionIndex: number,
+): NormalizedPoint[] {
+  const composition = sectionCompositions[sectionIndex % sectionCompositions.length];
+  if (!composition) return points.map((point) => ({ ...point }));
+
+  const lastIndex = points.length - 1;
+  const startDelta = {
+    x: composition.start.x - points[0].x,
+    y: composition.start.y - points[0].y,
+  };
+  const endDelta = {
+    x: composition.end.x - points[lastIndex].x,
+    y: composition.end.y - points[lastIndex].y,
+  };
+
+  return points.map((point, index) => {
+    const position = index / Math.max(1, lastIndex);
+    const startWeight = Math.pow(1 - position, 1.45);
+    const endWeight = Math.pow(position, 1.45);
+    const envelope = Math.sin(position * Math.PI);
+
+    return {
+      x:
+        point.x +
+        startDelta.x * startWeight +
+        endDelta.x * endWeight +
+        composition.bow.x * envelope,
+      y:
+        point.y +
+        startDelta.y * startWeight +
+        endDelta.y * endWeight +
+        composition.bow.y * envelope,
+    };
+  });
+}
+
 function extendEndpointOutside(
   point: NormalizedPoint,
   neighbor: NormalizedPoint,
@@ -126,13 +189,15 @@ export function extendLineEnds(
 export function shapeForScroll(
   route: PortfolioRoute,
   progress: number,
+  sectionIndex = 0,
 ): NormalizedPoint[] {
   const scroll = clamp(progress, 0, 1);
+  const sectionShape = shapeForSection(routeShapes[route], sectionIndex);
   const drift = scroll * 0.27;
   const bend = Math.sin(scroll * Math.PI);
   const pulse = Math.sin(scroll * Math.PI * 2);
 
-  const deformed = routeShapes[route].map((point, index, points) => {
+  const deformed = sectionShape.map((point, index, points) => {
     const position = index / Math.max(1, points.length - 1);
     const envelope = Math.sin(position * Math.PI);
     const wave = Math.sin(index * 0.84 + scroll * Math.PI * 2.1);
