@@ -13,26 +13,39 @@ type RippleFieldProps = {
   route: PortfolioRoute;
 };
 
-type FilamentNode = {
+type DotParticle = {
   x: number;
   y: number;
   vx: number;
   vy: number;
-  targetOffset: number;
-};
-
-type RippleFilament = {
-  nodes: FilamentNode[];
-  side: -1 | 1;
-  targetIndex: number;
   age: number;
   life: number;
+  radius: number;
+  size: number;
   alpha: number;
-  released: boolean;
+  seed: number;
 };
+
+// Primary tuning entry for the dot wake. Values are in CSS pixels or seconds.
+const RIPPLE_TUNING = {
+  dotsPerSide: 2,
+  maximumParticles: 240,
+  emissionDistance: 6,
+  emissionStepDistance: 8,
+  maximumEmissionSteps: 3,
+  minimumPointSize: 1.15,
+  pointSizeVariation: 2.15,
+  minimumLifetime: 1.55,
+  lifetimeVariation: 0.55,
+  peakAlpha: 0.62,
+  absorptionDistance: 24,
+  maximumAttraction: 0.021,
+  maximumPixelRatio: 1.5,
+} as const;
 
 const vertexShaderSource = `#version 300 es
   in vec2 a_position;
+  in float a_size;
   in float a_alpha;
   uniform vec2 u_resolution;
   out float v_alpha;
@@ -40,6 +53,7 @@ const vertexShaderSource = `#version 300 es
   void main() {
     vec2 clip = (a_position / u_resolution) * 2.0 - 1.0;
     gl_Position = vec4(clip.x, -clip.y, 0.0, 1.0);
+    gl_PointSize = a_size;
     v_alpha = a_alpha;
   }
 `;
@@ -50,7 +64,10 @@ const fragmentShaderSource = `#version 300 es
   out vec4 outColor;
 
   void main() {
-    outColor = vec4(0.035, 0.035, 0.035, v_alpha);
+    float distanceFromCenter = distance(gl_PointCoord, vec2(0.5));
+    float edge = 1.0 - smoothstep(0.34, 0.5, distanceFromCenter);
+    if (edge < 0.02) discard;
+    outColor = vec4(0.035, 0.035, 0.035, v_alpha * edge);
   }
 `;
 
@@ -97,25 +114,32 @@ function smoothstep(edge0: number, edge1: number, value: number) {
   return time * time * (3 - 2 * time);
 }
 
-function nearestSampleIndex(
-  x: number,
-  y: number,
+function nearestSample(
+  particle: DotParticle,
   samples: NormalizedPoint[],
   width: number,
   height: number,
 ) {
-  let nearestIndex = 0;
+  let nearestX = samples[0].x * width;
+  let nearestY = samples[0].y * height;
   let minimumDistance = Number.POSITIVE_INFINITY;
 
-  samples.forEach((sample, index) => {
-    const distance = (x - sample.x * width) ** 2 + (y - sample.y * height) ** 2;
+  samples.forEach((sample) => {
+    const x = sample.x * width;
+    const y = sample.y * height;
+    const distance = (particle.x - x) ** 2 + (particle.y - y) ** 2;
     if (distance < minimumDistance) {
       minimumDistance = distance;
-      nearestIndex = index;
+      nearestX = x;
+      nearestY = y;
     }
   });
 
-  return nearestIndex;
+  return {
+    x: nearestX,
+    y: nearestY,
+    distance: Math.sqrt(minimumDistance),
+  };
 }
 
 export function RippleField({ route }: RippleFieldProps) {
@@ -139,12 +163,13 @@ export function RippleField({ route }: RippleFieldProps) {
     if (!program) return;
 
     const positionBuffer = gl.createBuffer();
+    const sizeBuffer = gl.createBuffer();
     const alphaBuffer = gl.createBuffer();
     const positionLocation = gl.getAttribLocation(program, "a_position");
+    const sizeLocation = gl.getAttribLocation(program, "a_size");
     const alphaLocation = gl.getAttribLocation(program, "a_alpha");
     const resolutionLocation = gl.getUniformLocation(program, "u_resolution");
-    const filaments: RippleFilament[] = [];
-    let activePair: RippleFilament[] = [];
+    const particles: DotParticle[] = [];
     const pointer = {
       initialized: false,
       down: false,
@@ -152,15 +177,12 @@ export function RippleField({ route }: RippleFieldProps) {
       y: 0,
       lastEmitX: 0,
       lastEmitY: 0,
-      directionX: 1,
-      directionY: 0,
-      lastAppendTime: 0,
     };
     const reduceMotion = window.matchMedia(
       "(prefers-reduced-motion: reduce)",
     ).matches;
     let animationFrame = 0;
-    let previousTime = performance.now();
+    let previousTime = 0;
     let width = window.innerWidth;
     let height = window.innerHeight;
     let pixelRatio = 1;
@@ -173,7 +195,10 @@ export function RippleField({ route }: RippleFieldProps) {
     };
 
     const resize = () => {
-      pixelRatio = Math.min(window.devicePixelRatio || 1, 1.5);
+      pixelRatio = Math.min(
+        window.devicePixelRatio || 1,
+        RIPPLE_TUNING.maximumPixelRatio,
+      );
       width = window.innerWidth;
       height = window.innerHeight;
       canvas.width = Math.round(width * pixelRatio);
@@ -183,131 +208,64 @@ export function RippleField({ route }: RippleFieldProps) {
       gl.viewport(0, 0, canvas.width, canvas.height);
     };
 
-    const trimReleasedFilaments = () => {
-      while (filaments.length > 12) {
-        const oldestReleased = filaments.findIndex(
-          (filament) => filament.released,
-        );
-        if (oldestReleased < 0) break;
-        filaments.splice(oldestReleased, 1);
-      }
-    };
-
-    const beginWakePair = (
+    const emitDotWake = (
       x: number,
       y: number,
-      tangentX: number,
-      tangentY: number,
+      dx: number,
+      dy: number,
     ) => {
       if (reduceMotion) return;
+      const movement = Math.hypot(dx, dy);
+      if (movement < 0.5) return;
+
+      const tangentX = dx / movement;
+      const tangentY = dy / movement;
       const normalX = -tangentY;
       const normalY = tangentX;
+      const speed = clamp(movement * 0.045, 0.35, 1.15);
 
-      activePair = ([-1, 1] as const).map((side) => {
-        const filament: RippleFilament = {
-          nodes: [
-            {
-              x: x + normalX * side * 1.5,
-              y: y + normalY * side * 1.5,
-              vx: normalX * side * 0.72,
-              vy: normalY * side * 0.72,
-              targetOffset: 0,
-            },
-          ],
-          side,
-          targetIndex: 0,
-          age: 0,
-          life: 1.65,
-          alpha: 0.16,
-          released: false,
-        };
-        filaments.push(filament);
-        return filament;
-      });
+      ([-1, 1] as const).forEach((side) => {
+        for (let index = 0; index < RIPPLE_TUNING.dotsPerSide; index += 1) {
+          const outward = 2 + Math.random() * 7;
+          const trail = Math.random() * 11;
+          const tangentJitter = (Math.random() - 0.5) * 6;
+          const outwardVelocity = 0.62 + Math.random() * 1.12 + speed * 0.4;
+          const radius =
+            RIPPLE_TUNING.minimumPointSize +
+            Math.random() * RIPPLE_TUNING.pointSizeVariation;
 
-      trimReleasedFilaments();
-    };
-
-    const releaseActivePair = (tangentX: number, tangentY: number) => {
-      if (activePair.length === 0) return;
-      const samples = lineSamples();
-
-      activePair.forEach((filament) => {
-        if (filament.nodes.length < 2) {
-          const index = filaments.indexOf(filament);
-          if (index >= 0) filaments.splice(index, 1);
-          return;
+          particles.push({
+            x:
+              x +
+              normalX * side * outward +
+              tangentX * (tangentJitter - trail),
+            y:
+              y +
+              normalY * side * outward +
+              tangentY * (tangentJitter - trail),
+            vx:
+              normalX * side * outwardVelocity -
+              tangentX * (0.08 + Math.random() * 0.22),
+            vy:
+              normalY * side * outwardVelocity -
+              tangentY * (0.08 + Math.random() * 0.22),
+            age: 0,
+            life:
+              RIPPLE_TUNING.minimumLifetime +
+              Math.random() * RIPPLE_TUNING.lifetimeVariation,
+            radius,
+            size: radius,
+            alpha: 0,
+            seed: Math.random() * Math.PI * 2,
+          });
         }
-
-        const center = filament.nodes.reduce(
-          (result, node) => ({
-            x: result.x + node.x / filament.nodes.length,
-            y: result.y + node.y / filament.nodes.length,
-          }),
-          { x: 0, y: 0 },
-        );
-        const nearestIndex = nearestSampleIndex(
-          center.x,
-          center.y,
-          samples,
-          width,
-          height,
-        );
-        const before = samples[Math.max(0, nearestIndex - 2)];
-        const after = samples[Math.min(samples.length - 1, nearestIndex + 2)];
-        const lineDirectionX = (after.x - before.x) * width;
-        const lineDirectionY = (after.y - before.y) * height;
-        const targetDirection =
-          lineDirectionX * tangentX + lineDirectionY * tangentY >= 0 ? 1 : -1;
-        const midpoint = (filament.nodes.length - 1) / 2;
-
-        filament.nodes.forEach((node, index) => {
-          node.targetOffset = Math.round(
-            (index - midpoint) * 1.55 * targetDirection,
-          );
-        });
-        filament.targetIndex = nearestIndex;
-        filament.age = 0;
-        filament.life = 1.55;
-        filament.released = true;
       });
 
-      activePair = [];
-      trimReleasedFilaments();
-    };
-
-    const appendWakePoint = (
-      originX: number,
-      originY: number,
-      x: number,
-      y: number,
-      tangentX: number,
-      tangentY: number,
-      speed: number,
-    ) => {
-      if (activePair.length === 0) {
-        beginWakePair(originX, originY, tangentX, tangentY);
-      }
-
-      const normalX = -tangentY;
-      const normalY = tangentX;
-      const outwardSpeed = clamp(0.72 + speed * 0.028, 0.78, 1.35);
-
-      activePair.forEach((filament) => {
-        filament.nodes.push({
-          x: x + normalX * filament.side * 1.5,
-          y: y + normalY * filament.side * 1.5,
-          vx: normalX * filament.side * outwardSpeed,
-          vy: normalY * filament.side * outwardSpeed,
-          targetOffset: 0,
-        });
-        filament.alpha = Math.min(0.62, 0.16 + filament.nodes.length * 0.045);
-      });
-
-      pointer.lastAppendTime = performance.now();
-
-      if (activePair[0]?.nodes.length >= 12) {
-        releaseActivePair(tangentX, tangentY);
+      if (particles.length > RIPPLE_TUNING.maximumParticles) {
+        particles.splice(
+          0,
+          particles.length - RIPPLE_TUNING.maximumParticles,
+        );
       }
     };
 
@@ -317,7 +275,6 @@ export function RippleField({ route }: RippleFieldProps) {
       pointer.y = event.clientY;
       pointer.lastEmitX = event.clientX;
       pointer.lastEmitY = event.clientY;
-      pointer.lastAppendTime = performance.now();
     };
 
     const onPointerDown = (event: PointerEvent) => {
@@ -340,33 +297,23 @@ export function RippleField({ route }: RippleFieldProps) {
       const emitDistance = Math.hypot(emitDx, emitDy);
       const canEmit = event.pointerType !== "touch" || pointer.down;
 
-      if (canEmit && emitDistance >= 7) {
-        const tangentX = emitDx / emitDistance;
-        const tangentY = emitDy / emitDistance;
-        const steps = Math.min(4, Math.max(1, Math.floor(emitDistance / 7)));
-        const originX = pointer.lastEmitX;
-        const originY = pointer.lastEmitY;
-        let previousX = originX;
-        let previousY = originY;
-
-        pointer.directionX = tangentX;
-        pointer.directionY = tangentY;
-
+      if (canEmit && emitDistance >= RIPPLE_TUNING.emissionDistance) {
+        const steps = Math.min(
+          RIPPLE_TUNING.maximumEmissionSteps,
+          Math.max(
+            1,
+            Math.floor(emitDistance / RIPPLE_TUNING.emissionStepDistance),
+          ),
+        );
         for (let step = 1; step <= steps; step += 1) {
           const progress = step / steps;
-          appendWakePoint(
-            previousX,
-            previousY,
-            originX + emitDx * progress,
-            originY + emitDy * progress,
-            tangentX,
-            tangentY,
-            Math.hypot(dx, dy),
+          emitDotWake(
+            pointer.lastEmitX + emitDx * progress,
+            pointer.lastEmitY + emitDy * progress,
+            dx,
+            dy,
           );
-          previousX = originX + emitDx * progress;
-          previousY = originY + emitDy * progress;
         }
-
         pointer.lastEmitX = event.clientX;
         pointer.lastEmitY = event.clientY;
       }
@@ -375,113 +322,82 @@ export function RippleField({ route }: RippleFieldProps) {
       pointer.y = event.clientY;
     };
 
-    const onPointerUp = (event: PointerEvent) => {
+    const onPointerUp = () => {
       pointer.down = false;
-      if (event.pointerType === "touch") {
-        releaseActivePair(pointer.directionX, pointer.directionY);
-      }
     };
 
     const onPointerLeave = () => {
-      releaseActivePair(pointer.directionX, pointer.directionY);
       if (!pointer.down) pointer.initialized = false;
     };
 
     const render = (time: number) => {
-      const deltaSeconds = Math.min(0.05, (time - previousTime) / 1000);
+      const deltaSeconds =
+        previousTime === 0 ? 0.016 : Math.min(0.05, (time - previousTime) / 1000);
       const frameScale = deltaSeconds * 60;
       previousTime = time;
-
-      if (
-        activePair.length > 0 &&
-        time - pointer.lastAppendTime > 200
-      ) {
-        releaseActivePair(pointer.directionX, pointer.directionY);
-      }
-
       const samples = lineSamples();
 
-      for (let index = filaments.length - 1; index >= 0; index -= 1) {
-        const filament = filaments[index];
+      for (let index = particles.length - 1; index >= 0; index -= 1) {
+        const particle = particles[index];
+        particle.age += deltaSeconds;
+        const lifeProgress = particle.age / particle.life;
+        const attraction = smoothstep(0.14, 0.86, lifeProgress);
+        const attractor = nearestSample(particle, samples, width, height);
+        const spring =
+          0.00055 +
+          attraction * attraction * RIPPLE_TUNING.maximumAttraction;
+        const turbulence =
+          Math.sin(particle.age * 7 + particle.seed) *
+          (1 - attraction) *
+          0.018;
 
-        if (!filament.released) {
-          filament.nodes.forEach((node) => {
-            const damping = Math.pow(0.966, frameScale);
-            node.vx *= damping;
-            node.vy *= damping;
-            node.x += node.vx * frameScale;
-            node.y += node.vy * frameScale;
-          });
-          continue;
-        }
+        particle.vx +=
+          (attractor.x - particle.x) * spring * frameScale +
+          turbulence * frameScale;
+        particle.vy +=
+          (attractor.y - particle.y) * spring * frameScale -
+          turbulence * frameScale;
+        const damping = Math.pow(0.958 - attraction * 0.078, frameScale);
+        particle.vx *= damping;
+        particle.vy *= damping;
+        particle.x += particle.vx * frameScale;
+        particle.y += particle.vy * frameScale;
 
-        filament.age += deltaSeconds;
-        const lifeProgress = filament.age / filament.life;
-        const attraction = smoothstep(0.08, 0.88, lifeProgress);
-        const spring = 0.0018 + attraction * attraction * 0.019;
-        let totalDistance = 0;
+        const fadeIn = smoothstep(0, 0.055, lifeProgress);
+        const fadeOut = 1 - smoothstep(0.67, 1, lifeProgress);
+        const absorption =
+          lifeProgress < 0.42
+            ? 1
+            : clamp(
+                attractor.distance / RIPPLE_TUNING.absorptionDistance,
+                0.04,
+                1,
+              );
+        particle.alpha =
+          RIPPLE_TUNING.peakAlpha * fadeIn * fadeOut * absorption;
+        particle.size = Math.max(
+          0.55,
+          particle.radius *
+            (0.74 + fadeOut * 0.26) *
+            (attractor.distance < 28
+              ? 0.42 + (attractor.distance / 28) * 0.58
+              : 1),
+        );
 
-        filament.nodes.forEach((node) => {
-          const targetIndex = clamp(
-            filament.targetIndex + node.targetOffset,
-            0,
-            samples.length - 1,
-          );
-          const target = samples[targetIndex];
-          const targetX = target.x * width;
-          const targetY = target.y * height;
-          const distanceX = targetX - node.x;
-          const distanceY = targetY - node.y;
-          totalDistance += Math.hypot(distanceX, distanceY);
-          node.vx += distanceX * spring * frameScale;
-          node.vy += distanceY * spring * frameScale;
-          const damping = Math.pow(0.925 - attraction * 0.055, frameScale);
-          node.vx *= damping;
-          node.vy *= damping;
-          node.x += node.vx * frameScale;
-          node.y += node.vy * frameScale;
-        });
-
-        const averageDistance = totalDistance / filament.nodes.length;
-        const fadeOut = 1 - smoothstep(0.58, 1, lifeProgress);
-        const merge =
-          lifeProgress < 0.54 ? 1 : clamp(averageDistance / 30, 0.06, 1);
-        filament.alpha = 0.62 * fadeOut * merge;
-
-        if (lifeProgress >= 1 || filament.alpha < 0.005) {
-          filaments.splice(index, 1);
+        if (lifeProgress >= 1 || particle.alpha < 0.005) {
+          particles.splice(index, 1);
         }
       }
 
-      const positions: number[] = [];
-      const alphas: number[] = [];
+      const positions = new Float32Array(particles.length * 2);
+      const sizes = new Float32Array(particles.length);
+      const alphas = new Float32Array(particles.length);
 
-      filaments.forEach((filament) => {
-        const segmentCount = filament.nodes.length - 1;
-
-        for (let nodeIndex = 0; nodeIndex < segmentCount; nodeIndex += 1) {
-          const start = filament.nodes[nodeIndex];
-          const end = filament.nodes[nodeIndex + 1];
-          const startPosition = nodeIndex / Math.max(1, segmentCount);
-          const endPosition = (nodeIndex + 1) / Math.max(1, segmentCount);
-          const startTaper = filament.released
-            ? 0.26 + Math.sin(startPosition * Math.PI) * 0.74
-            : 0.28 + startPosition * 0.72;
-          const endTaper = filament.released
-            ? 0.26 + Math.sin(endPosition * Math.PI) * 0.74
-            : 0.28 + endPosition * 0.72;
-
-          positions.push(
-            start.x * pixelRatio,
-            start.y * pixelRatio,
-            end.x * pixelRatio,
-            end.y * pixelRatio,
-          );
-          alphas.push(
-            filament.alpha * startTaper,
-            filament.alpha * endTaper,
-          );
-        }
+      particles.forEach((particle, index) => {
+        positions[index * 2] = particle.x * pixelRatio;
+        positions[index * 2 + 1] = particle.y * pixelRatio;
+        sizes[index] = particle.size * pixelRatio;
+        alphas[index] = particle.alpha;
       });
 
       gl.clearColor(0, 0, 0, 0);
@@ -490,23 +406,23 @@ export function RippleField({ route }: RippleFieldProps) {
       gl.enable(gl.BLEND);
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
       gl.uniform2f(resolutionLocation, canvas.width, canvas.height);
-      gl.lineWidth(Math.min(2, pixelRatio * 1.1));
 
       gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-      gl.bufferData(
-        gl.ARRAY_BUFFER,
-        new Float32Array(positions),
-        gl.DYNAMIC_DRAW,
-      );
+      gl.bufferData(gl.ARRAY_BUFFER, positions, gl.DYNAMIC_DRAW);
       gl.enableVertexAttribArray(positionLocation);
       gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
 
+      gl.bindBuffer(gl.ARRAY_BUFFER, sizeBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, sizes, gl.DYNAMIC_DRAW);
+      gl.enableVertexAttribArray(sizeLocation);
+      gl.vertexAttribPointer(sizeLocation, 1, gl.FLOAT, false, 0, 0);
+
       gl.bindBuffer(gl.ARRAY_BUFFER, alphaBuffer);
-      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(alphas), gl.DYNAMIC_DRAW);
+      gl.bufferData(gl.ARRAY_BUFFER, alphas, gl.DYNAMIC_DRAW);
       gl.enableVertexAttribArray(alphaLocation);
       gl.vertexAttribPointer(alphaLocation, 1, gl.FLOAT, false, 0, 0);
 
-      gl.drawArrays(gl.LINES, 0, alphas.length);
+      gl.drawArrays(gl.POINTS, 0, particles.length);
       animationFrame = requestAnimationFrame(render);
     };
 
@@ -528,6 +444,7 @@ export function RippleField({ route }: RippleFieldProps) {
       window.removeEventListener("pointercancel", onPointerUp);
       document.documentElement.removeEventListener("pointerleave", onPointerLeave);
       if (positionBuffer) gl.deleteBuffer(positionBuffer);
+      if (sizeBuffer) gl.deleteBuffer(sizeBuffer);
       if (alphaBuffer) gl.deleteBuffer(alphaBuffer);
       gl.deleteProgram(program);
     };

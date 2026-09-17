@@ -2,7 +2,7 @@
 
 ## Project intent
 
-Build and maintain a restrained monochrome portfolio for an independent designer and photographer. The site has three long-form routes: introduction, photography, and projects. A persistent black line changes shape between routes and continuously reacts to vertical scroll. Pointer movement creates WebGL ripple filaments that move to both sides of the pointer path, are attracted toward the background line, fit its curve, and dissolve into it.
+Build and maintain a restrained monochrome portfolio for an independent designer and photographer. The site has three long-form routes: introduction, photography, and projects. A persistent black line changes shape between routes and continuously reacts to vertical scroll. On the `dot` branch, pointer movement creates WebGL dot ripples that disperse around both sides of the path, are attracted toward the background line, and dissolve into it.
 
 Before changing product code, read:
 
@@ -23,7 +23,7 @@ Before changing product code, read:
 - Every settled section composition must keep the visible body of the line near the central region of the viewport. Endpoints may travel along the outer boundary, but they must not pull the curve into an edge-only composition.
 - Render and sample the line with the same continuous quadratic spline. Avoid cubic overshoot, sharp joins, hooks, and mismatches between the SVG curve and ripple attraction samples.
 - Both ends of the background line must remain beyond the viewport with an overscan margin. No endpoint may become visible during initial render, scrolling, route interpolation, or responsive resizing.
-- On fine pointers, ripple filaments are generated whenever the pointer moves; no press is required. They originate on both sides of the movement direction, disperse, bend toward the current sampled background curve, align with it, and disappear as they merge.
+- On fine pointers, dot ripples are generated whenever the pointer moves; no press is required. They begin as a restrained wake around both sides of the movement direction, disperse, curve toward the current sampled background line, and disappear as they merge.
 - Preserve complete navigation and readable content when WebGL is unavailable.
 - Do not introduce a dark full-page theme, bright accent colors, glassmorphism, 3D objects, heavy shadows, or generic card grids.
 
@@ -34,14 +34,14 @@ Before changing product code, read:
 - Layout: asymmetric Swiss-influenced grids, long pauses, large negative space, hairline rules.
 - Motion: controlled, quiet, slightly elastic. Route transitions should feel continuous rather than abrupt.
 - Photography remains true grayscale. Do not colorize images on hover.
-- Corners should generally be square. Curves belong to the background path, its line-filament feedback, and rare line-created enclosures.
+- Corners should generally be square. Curves belong to the background path and rare line-created enclosures; ripple feedback on this branch is made of small round dots.
 
 ## Architecture boundaries
 
 - `app/`: routes, metadata, and semantic page content.
 - `components/portfolio-frame.tsx`: persistent navigation and visual layers.
 - `components/line-field.tsx`: route- and scroll-driven line interpolation.
-- `components/ripple-field.tsx`: WebGL setup, filament simulation, and drawing only.
+- `components/ripple-field.tsx`: WebGL setup, dot-particle simulation, and drawing only.
 - `lib/visual-shapes.ts`: route names, normalized control points, scroll deformation, and curve sampling.
 - `lib/line-runtime.ts`: lightweight mutable bridge exposing the currently rendered curve samples to WebGL.
 - `public/photos/`: final local photography assets.
@@ -53,11 +53,11 @@ Keep page content separate from visual simulation. Do not move content data into
 ## Interaction rules
 
 - Convert pointer movement into a normalized direction vector.
-- Grow one paired wake from the pointer head by appending nodes along the travelled path; never instantiate a complete curve in one frame.
-- Let older wake nodes drift outward along the perpendicular normal so the pair opens like a restrained boat wake.
-- Clamp density and velocity so fast pointer movement does not create an unbounded filament count.
-- Preserve ordered targets along densely sampled line points so each filament progressively fits the active curve instead of collapsing into one point.
-- Increase absorption when a filament nears the line by reducing alpha.
+- Emit a small, balanced group of dots on both sides of the pointer path using the perpendicular normal vector.
+- Give new dots a brief outward velocity so the cluster opens like restrained boat-wake spray before attraction becomes dominant.
+- Clamp density and velocity so fast pointer movement does not create an unbounded particle count.
+- Attract each dot to the nearest point on the densely sampled active background line.
+- Increase absorption when a dot nears the line by reducing both size and alpha.
 - Use frame-time-based updates and clamp long frame gaps.
 - Limit device pixel ratio to 1.5 unless profiling proves a higher value is safe.
 - Respect `prefers-reduced-motion`; disable continuous ripple emission and line echo in that mode.
@@ -104,7 +104,7 @@ For visual or interaction work also verify:
 - Each route has more than one viewport of content.
 - Scrolling continuously deforms and vertically drifts the background line.
 - The background line crosses the viewport boundary at both ends; no cap or endpoint is visible on screen during route and scroll motion.
-- Pointer hover movement progressively draws a minimal paired wake from its head; released wakes converge, align, and merge with the line.
+- Pointer hover movement produces a minimal dot wake that first disperses, then curves toward and disappears into the line.
 - Native scrolling still works on touch-sized viewports.
 - Reduced-motion mode removes continuous movement.
 
