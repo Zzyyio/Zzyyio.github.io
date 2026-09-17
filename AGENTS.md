@@ -21,6 +21,7 @@ Before changing product code, read:
 - When the viewport center crosses a semantic section boundary, trigger a self-completing line-composition animation. Do not derive its in-between state from scroll position or alter native scrolling.
 - Build section changes by moving the two off-screen endpoint anchors and propagating their displacement through the intermediate control points. Do not mirror or reverse the complete path.
 - Every settled section composition must keep the visible body of the line near the central region of the viewport. Endpoints may travel along the outer boundary, but they must not pull the curve into an edge-only composition.
+- Render and sample the line with the same continuous quadratic spline. Avoid cubic overshoot, sharp joins, hooks, and mismatches between the SVG curve and ripple attraction samples.
 - Both ends of the background line must remain beyond the viewport with an overscan margin. No endpoint may become visible during initial render, scrolling, route interpolation, or responsive resizing.
 - On fine pointers, ripple filaments are generated whenever the pointer moves; no press is required. They originate on both sides of the movement direction, disperse, bend toward the current sampled background curve, align with it, and disappear as they merge.
 - Preserve complete navigation and readable content when WebGL is unavailable.

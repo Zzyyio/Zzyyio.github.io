@@ -271,21 +271,22 @@ export function pointsToSmoothPath(points: NormalizedPoint[]): string {
 
   let path = `M ${scaled[0].x.toFixed(2)} ${scaled[0].y.toFixed(2)}`;
 
-  for (let index = 0; index < scaled.length - 1; index += 1) {
-    const previous = scaled[Math.max(0, index - 1)];
-    const current = scaled[index];
-    const next = scaled[index + 1];
-    const after = scaled[Math.min(scaled.length - 1, index + 2)];
-    const control1 = {
-      x: current.x + (next.x - previous.x) / 6,
-      y: current.y + (next.y - previous.y) / 6,
-    };
-    const control2 = {
-      x: next.x - (after.x - current.x) / 6,
-      y: next.y - (after.y - current.y) / 6,
-    };
+  if (scaled.length === 2) {
+    return `${path} L ${scaled[1].x.toFixed(2)} ${scaled[1].y.toFixed(2)}`;
+  }
 
-    path += ` C ${control1.x.toFixed(2)} ${control1.y.toFixed(2)}, ${control2.x.toFixed(2)} ${control2.y.toFixed(2)}, ${next.x.toFixed(2)} ${next.y.toFixed(2)}`;
+  for (let index = 1; index < scaled.length - 1; index += 1) {
+    const control = scaled[index];
+    const next = scaled[index + 1];
+    const end =
+      index === scaled.length - 2
+        ? next
+        : {
+            x: (control.x + next.x) * 0.5,
+            y: (control.y + next.y) * 0.5,
+          };
+
+    path += ` Q ${control.x.toFixed(2)} ${control.y.toFixed(2)}, ${end.x.toFixed(2)} ${end.y.toFixed(2)}`;
   }
 
   return path;
@@ -297,34 +298,51 @@ export function sampleSmoothCurve(
 ): NormalizedPoint[] {
   if (points.length < 2) return points.map((point) => ({ ...point }));
 
+  if (points.length === 2) {
+    const samples: NormalizedPoint[] = [];
+    for (let sample = 0; sample < samplesPerSegment; sample += 1) {
+      const time = sample / samplesPerSegment;
+      samples.push({
+        x: points[0].x + (points[1].x - points[0].x) * time,
+        y: points[0].y + (points[1].y - points[0].y) * time,
+      });
+    }
+    samples.push({ ...points[1] });
+    return samples;
+  }
+
   const samples: NormalizedPoint[] = [];
 
-  for (let index = 0; index < points.length - 1; index += 1) {
-    const previous = points[Math.max(0, index - 1)];
-    const current = points[index];
-    const next = points[index + 1];
-    const after = points[Math.min(points.length - 1, index + 2)];
+  for (let index = 1; index < points.length - 1; index += 1) {
+    const control = points[index];
+    const start =
+      index === 1
+        ? points[0]
+        : {
+            x: (points[index - 1].x + control.x) * 0.5,
+            y: (points[index - 1].y + control.y) * 0.5,
+          };
+    const end =
+      index === points.length - 2
+        ? points[points.length - 1]
+        : {
+            x: (control.x + points[index + 1].x) * 0.5,
+            y: (control.y + points[index + 1].y) * 0.5,
+          };
 
     for (let sample = 0; sample < samplesPerSegment; sample += 1) {
       const time = sample / samplesPerSegment;
-      const time2 = time * time;
-      const time3 = time2 * time;
+      const inverse = 1 - time;
 
       samples.push({
         x:
-          0.5 *
-          (2 * current.x +
-            (-previous.x + next.x) * time +
-            (2 * previous.x - 5 * current.x + 4 * next.x - after.x) *
-              time2 +
-            (-previous.x + 3 * current.x - 3 * next.x + after.x) * time3),
+          inverse * inverse * start.x +
+          2 * inverse * time * control.x +
+          time * time * end.x,
         y:
-          0.5 *
-          (2 * current.y +
-            (-previous.y + next.y) * time +
-            (2 * previous.y - 5 * current.y + 4 * next.y - after.y) *
-              time2 +
-            (-previous.y + 3 * current.y - 3 * next.y + after.y) * time3),
+          inverse * inverse * start.y +
+          2 * inverse * time * control.y +
+          time * time * end.y,
       });
     }
   }
