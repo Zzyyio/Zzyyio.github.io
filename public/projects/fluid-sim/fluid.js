@@ -7,7 +7,7 @@ const source=await fetch('fluid.glsl?v=fixed-scale-2',{cache:'no-store'}).then(r
 function shader(type,text){const s=gl.createShader(type);gl.shaderSource(s,text);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(s));return s;}
 const program=gl.createProgram();gl.attachShader(program,shader(gl.VERTEX_SHADER,'#version 300 es\nvoid main(){vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.-1.,0,1);}'));gl.attachShader(program,shader(gl.FRAGMENT_SHADER,source));gl.linkProgram(program);if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));gl.useProgram(program);gl.bindVertexArray(gl.createVertexArray());
 const loc=n=>gl.getUniformLocation(program,n);let w,h,gridScale,velocity,dye,pressure,div,diffusionSource,curl,resources=[];
-function target(){const t=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,t);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA16F,w,h,0,gl.RGBA,gl.HALF_FLOAT,null);for(const k of [gl.TEXTURE_MIN_FILTER,gl.TEXTURE_MAG_FILTER])gl.texParameteri(gl.TEXTURE_2D,k,gl.NEAREST);for(const k of [gl.TEXTURE_WRAP_S,gl.TEXTURE_WRAP_T])gl.texParameteri(gl.TEXTURE_2D,k,gl.CLAMP_TO_EDGE);const f=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,f);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,t,0);if(gl.checkFramebufferStatus(gl.FRAMEBUFFER)!==gl.FRAMEBUFFER_COMPLETE)throw Error('浮点 framebuffer 不受支持');gl.clear(gl.COLOR_BUFFER_BIT);const out={t,f};resources.push(out);return out;}
+function target(){const t=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,t);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA16F,w,h,0,gl.RGBA,gl.HALF_FLOAT,null);for(const k of [gl.TEXTURE_MIN_FILTER,gl.TEXTURE_MAG_FILTER])gl.texParameteri(gl.TEXTURE_2D,k,gl.NEAREST);for(const k of [gl.TEXTURE_WRAP_S,gl.TEXTURE_WRAP_T])gl.texParameteri(gl.TEXTURE_2D,k,gl.CLAMP_TO_EDGE);const f=gl.createFramebuffer();const out={t,f};resources.push(out);gl.bindFramebuffer(gl.FRAMEBUFFER,f);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,t,0);if(gl.checkFramebufferStatus(gl.FRAMEBUFFER)!==gl.FRAMEBUFFER_COMPLETE)throw Error('浮点 framebuffer 不受支持');gl.clear(gl.COLOR_BUFFER_BIT);return out;}
 const obstacleTexture=gl.createTexture();let obstacleVersion=-1;
 function updateObstacles(){
  const pixels=new Uint8Array(w*h);
@@ -16,9 +16,11 @@ function updateObstacles(){
  gl.texImage2D(gl.TEXTURE_2D,0,gl.R8,w,h,0,gl.RED,gl.UNSIGNED_BYTE,pixels);
  for(const key of [gl.TEXTURE_MIN_FILTER,gl.TEXTURE_MAG_FILTER])gl.texParameteri(gl.TEXTURE_2D,key,gl.NEAREST);
  for(const key of [gl.TEXTURE_WRAP_S,gl.TEXTURE_WRAP_T])gl.texParameteri(gl.TEXTURE_2D,key,gl.CLAMP_TO_EDGE);
+ if(gl.getError()!==gl.NO_ERROR)throw Error('无法分配模拟纹理');
  gl.uniform1i(loc('obstacles'),2);obstacleVersion=scene.version;
 }
 const pair=()=>[target(),target()];
+const maxTextureSize=gl.getParameter(gl.MAX_TEXTURE_SIZE);
 function reset(){for(const r of resources){gl.deleteTexture(r.t);gl.deleteFramebuffer(r.f)}resources=[];const ratio=canvas.clientWidth/canvas.clientHeight;w=Math.max(16,Math.round(number('resolution')*Math.min(ratio,1)));h=Math.max(16,Math.round(number('resolution')*Math.min(1/ratio,1)));gridScale=[w/(256*Math.min(ratio,1)),h/(256*Math.min(1/ratio,1))];gl.uniform2f(loc('gridScale'),...gridScale);velocity=pair();dye=pair();pressure=pair();div=target();diffusionSource=target();curl=target();updateObstacles();}
 function pass(mode,out,a,b=a,display=false){gl.bindFramebuffer(gl.FRAMEBUFFER,out?.f??null);gl.viewport(0,0,display?canvas.width:w,display?canvas.height:h);gl.uniform2f(loc('size'),display?canvas.width:w,display?canvas.height:h);gl.uniform1i(loc('mode'),mode);[a,b].forEach((r,i)=>{gl.activeTexture(gl.TEXTURE0+i);gl.bindTexture(gl.TEXTURE_2D,r.t);gl.uniform1i(loc(i?'b':'a'),i)});gl.drawArrays(gl.TRIANGLES,0,3);}
 function swapPass(mode,p,b=p[0]){pass(mode,p[1],p[0],b);p.reverse()}
@@ -31,7 +33,35 @@ canvas.onpointerdown=e=>{if(pointer)return;canvas.setPointerCapture(e.pointerId)
 canvas.onpointermove=e=>{if(pointer?.id===e.pointerId)pointer.p=pos(e)};
 canvas.onpointerup=canvas.onpointercancel=canvas.onlostpointercapture=e=>{if(pointer?.id===e.pointerId)pointer=null};
 control('reset').onclick=()=>{reset();pointer=null};
-control('resolution').addEventListener('change',()=>{reset();pointer=null});
+const resolution=control('resolution');
+let activeResolution=resolution.value;
+for(const option of resolution.options){
+ option.disabled=Number(option.value)>maxTextureSize;
+}
+resolution.addEventListener('change',()=>{
+ const requested=resolution.value;
+ if(lost||Number(requested)>maxTextureSize){
+  resolution.value=activeResolution;
+  return;
+ }
+ pointer=null;
+ try {
+  reset();
+  activeResolution=requested;
+  error.textContent='';
+ } catch {
+  resolution.value=activeResolution;
+  // Discard allocation errors before rebuilding the previous grid.
+  while(gl.getError()!==gl.NO_ERROR){}
+  try {
+   reset();
+   error.textContent=`无法启动 ${requested} 分辨率，已恢复到 ${activeResolution}。`;
+  } catch {
+   lost=true;
+   error.textContent='无法恢复模拟，请刷新页面。';
+  }
+ }
+});
 let previous=performance.now(),lost=false;canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();lost=true;error.textContent='GPU 上下文丢失，请刷新页面。'});
 function frame(now){if(lost)return;try{const cw=Math.max(1,Math.round(canvas.clientWidth*Math.min(devicePixelRatio,2))),ch=Math.max(1,Math.round(canvas.clientHeight*Math.min(devicePixelRatio,2)));if(canvas.width!==cw||canvas.height!==ch||!velocity){canvas.width=cw;canvas.height=ch;reset();pointer=null}if(obstacleVersion!==scene.version){updateObstacles();pointer=null;}const elapsed=Math.min(Math.max((now-previous)/1000,0),1/30)*number('timeScale');previous=now;
 // Keep each numerical step at most 1/30 s even when playback is accelerated.
