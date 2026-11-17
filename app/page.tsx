@@ -55,6 +55,9 @@ export default function Home() {
         <p className="section-index">C / 继续</p>
         <h2 id="explore-title">沿着线条继续观看</h2>
         <div className="next-links">
+          <a href="https://zzyyio.github.io/projects/fluid-sim/">
+            <span>流体实验室</span><span>体验交互模拟 →</span>
+          </a>
           <Link href="/photography">
             <span>摄影作品</span><span>查看系列 →</span>
           </Link>

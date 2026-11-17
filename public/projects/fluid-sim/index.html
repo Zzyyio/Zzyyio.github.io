@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fluid · 流体</title>
+<link rel="stylesheet" href="styles.css?v=uniform-grid-fix-1">
+<link rel="stylesheet" href="presets.css?v=uniform-grid-fix-1">
+<link rel="stylesheet" href="editor.css?v=uniform-grid-fix-1">
+</head>
+<body>
+<canvas aria-label="交互流体画布">
+</canvas>
+<aside class="panel" id="panel" aria-label="流体参数">
+<header>
+<h1>
+<i>
+</i>Fluid Sim</h1>
+<button id="reset" type="button">清空</button>
+</header>
+<input id="mode" type="hidden" value="0">
+<div class="mode-options" role="group" aria-label="显示模式">
+<button type="button" data-mode="0" aria-pressed="true">速度场</button>
+<button type="button" data-mode="1" aria-pressed="false">颜料</button>
+</div>
+<div id="hueSettings" class="hue-settings">
+<div class="hue-labels">
+<span>最低速度 <i id="lowSwatch">
+</i>
+</span>
+<span>最高速度 <i id="highSwatch">
+</i>
+</span>
+</div>
+<div class="hue-track">
+<div id="hueSelection">
+</div>
+<input id="hueLow" aria-label="最低速度颜色" type="range" min="0" max="360" value="0">
+<input id="hueHigh" aria-label="最高速度颜色" type="range" min="0" max="360" value="240">
+</div>
+</div>
+<div class="field">
+<label for="viscosity">粘度</label>
+<span>
+<output id="viscosityValue">0</output>
+<small>格²/秒</small>
+</span>
+<input id="viscosity" type="range" min="0" max="100" step="1" value="0">
+</div>
+<div class="field">
+<label for="velocityDecay">速度衰减</label>
+<span>
+<output id="velocityDecayValue">0.12</output>
+<small>/秒</small>
+</span>
+<input id="velocityDecay" type="range" min="0" max="3" step="0.01" value="0.12">
+</div>
+<div class="field">
+<label for="vorticity">涡旋增强</label>
+<span>
+<output id="vorticityValue">0</output>
+<small>
+</small>
+</span>
+<input id="vorticity" type="range" min="0" max="10" step="0.1" value="0">
+</div>
+<div class="field">
+<label for="timeScale">时间倍率</label>
+<span>
+<output id="timeScaleValue">1</output>
+<small>×</small>
+</span>
+<input id="timeScale" type="range" min="0.1" max="2" step="0.1" value="1">
+</div>
+<div class="field">
+<label for="iterations">压力迭代</label>
+<span>
+<output id="iterationsValue">60</output>
+<small>次</small>
+</span>
+<input id="iterations" type="range" min="10" max="120" step="10" value="60">
+</div>
+<div class="resolution-control">
+<label for="resolution">分辨率</label>
+<select id="resolution">
+<option value="128">128 · 轻量</option>
+<option value="256" selected>256 · 标准</option>
+<option value="384">384 · 精细</option>
+<option value="512">512 · 高清</option>
+</select>
+</div>
+<section id="brushSettings" class="brush-settings" aria-hidden="true" inert>
+<div class="brush-inner">
+<div class="field">
+<label for="dyeDecay">颜料消散</label>
+<span>
+<output id="dyeDecayValue">0.08</output>
+<small>/秒</small>
+</span>
+<input id="dyeDecay" type="range" min="0" max="3" step="0.01" value="0.08">
+</div>
+<h2>画笔</h2>
+<div class="field">
+<label for="radius">半径</label>
+<span>
+<output id="radiusValue">9</output>
+<small>格</small>
+</span>
+<input id="radius" type="range" min="1" max="30" step="1" value="9">
+</div>
+<div class="field">
+<label for="strength">力度</label>
+<span>
+<output id="strengthValue">1</output>
+<small>×</small>
+</span>
+<input id="strength" type="range" min="0" max="4" step="0.1" value="1">
+</div>
+<div class="field">
+<label for="amount">流量</label>
+<span>
+<output id="amountValue">20</output>
+<small>/秒</small>
+</span>
+<input id="amount" type="range" min="0" max="60" step="1" value="20">
+</div>
+<div class="color">
+<label for="inkColor">颜料颜色</label>
+<input id="inkColor" type="color" value="#4db3ff">
+</div>
+</div>
+</section>
+</aside>
+<aside class="panel" id="scenePanel" aria-label="障碍物场景预设">
+  <header><h1>场景预设</h1><span>障碍物</span></header>
+  <div class="preset-list" id="presetList" role="group" aria-label="预设列表"></div>
+  <section class="preset-editor" aria-label="编辑预设">
+    <h2>编辑预设</h2>
+    <label for="presetName">名称</label>
+    <input id="presetName" type="text" maxlength="40" autocomplete="off">
+    <button id="editPreset" type="button">编辑预设</button>
+<p id="presetStatus" role="status"></p>
+  </section>
+</aside>
+<div id="sceneCorner" aria-hidden="true"></div>
+<button id="sceneToggle" type="button" aria-controls="scenePanel" aria-expanded="true" aria-label="收起场景面板">›</button>
+<div id="corner" aria-hidden="true">
+</div>
+<button id="toggle" type="button" aria-controls="panel" aria-expanded="true" aria-label="收起参数面板" title="收起参数面板">‹</button>
+<div id="error" role="alert">
+</div>
+<script type="module" src="ui.js?v=uniform-grid-fix-1">
+</script>
+<script type="module" src="fluid.js?v=uniform-grid-fix-1">
+</script>
+<script type="module" src="presets.js?v=uniform-grid-fix-1"></script>
+<script type="module" src="obstacle-display.js?v=uniform-grid-fix-1"></script>
+</body>
+</html>

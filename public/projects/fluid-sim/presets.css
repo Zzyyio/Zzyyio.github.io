@@ -1,0 +1,57 @@
+#scenePanel { left:auto; right:20px; width:292px; height:min(740px,calc(100dvh - 40px)); display:flex; flex-direction:column; overflow:hidden; }
+#scenePanel.closed { transform:translateX(calc(100% + 24px)); }
+#scenePanel header { flex-shrink:0; margin-bottom:16px; }
+#scenePanel header span { font-size:11px; color:#aebaca; }
+.preset-list { flex:1 1 50%; min-height:0; overflow-y:auto; padding:2px 4px 2px 2px; scrollbar-width:thin; display:flex; flex-direction:column; gap:10px; }
+.preset-card { position:relative; width:100%; min-height:132px; flex-shrink:0; padding:0; overflow:hidden; border-radius:12px; background:linear-gradient(135deg,#ffffff08,#ffffff02); text-align:left; }
+.preset-card[aria-pressed=true] { border-color:#8edbcd; box-shadow:inset 0 0 0 1px #8edbcd30; }
+.preset-title { position:absolute; top:12px; left:12px; right:12px; font-size:12px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.preset-card svg { display:block; width:100%; height:132px; padding-top:15px; }
+.preset-card circle { fill:#dce6ef; }
+.preset-empty { position:absolute; inset:60px 0 auto; text-align:center; font-size:11px; color:#8f9eaf; }
+.preset-add { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; color:#b9c8d8; border-style:dashed; }
+.preset-add span:first-child { font-size:28px; font-weight:300; }
+.preset-add span:last-child { font-size:12px; }
+.preset-editor { flex:1 1 50%; min-height:125px; border-top:1px solid #ffffff18; margin-top:20px; padding-top:20px; }
+.preset-editor h2 { margin:0 0 20px; padding:0; border:0; }
+.preset-editor label { display:block; margin-bottom:10px; font-size:12px; }
+#presetName { width:100%; background:#ffffff08; border:1px solid #ffffff25; border-radius:8px; padding:10px; color:inherit; font:inherit; }
+#presetStatus { font-size:11px; color:#eac49e; line-height:1.5; }
+#sceneToggle { position:fixed; top:27px; right:322px; width:36px; height:40px; padding:0; background:linear-gradient(135deg,#ffffff1a,#ffffff06),rgba(18,24,34,.42); border:1px solid #ffffff30; box-shadow:0 8px 24px #0002,inset 0 1px 0 #ffffff30; backdrop-filter:blur(24px) saturate(160%); -webkit-backdrop-filter:blur(24px) saturate(160%); transition:right .25s ease,transform .25s ease,opacity .25s ease; z-index:3; font-size:20px; }
+#sceneToggle.collapsed { right:12px; transform:translateX(64px); opacity:0; pointer-events:none; }
+#sceneToggle.collapsed.revealed,#sceneToggle.collapsed:focus-visible { transform:translateX(0); opacity:1; pointer-events:auto; }
+#sceneCorner { position:fixed; right:0; top:0; width:80px; height:92px; z-index:2; display:none; }
+#sceneCorner.active { display:block; }
+@media(max-width:368px) { #sceneToggle { right:calc(100vw - 46px); } }
+@media(prefers-reduced-motion:reduce) { #scenePanel,#sceneToggle { transition:none; } }
+
+/* Sibling buttons keep selection and deletion separate and keyboard accessible. */
+.preset-item { position:relative; flex-shrink:0; border-radius:12px; }
+.preset-item .preset-card { display:block; }
+.preset-item::after {
+  content:""; position:absolute; inset:0 0 0 48%; border-radius:0 12px 12px 0;
+  background:linear-gradient(90deg,transparent,rgba(239,105,116,.12) 35%,rgba(239,105,116,.3));
+  backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  mask-image:linear-gradient(90deg,transparent,#000 65%);
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 65%);
+  opacity:0; pointer-events:none; transition:opacity .16s ease;
+}
+.preset-delete {
+  position:absolute; right:14px; top:50%; transform:translateY(-50%); z-index:1;
+  width:38px; height:38px; min-height:38px; padding:8px; border:0;
+  background:transparent; color:#ffb6bc; opacity:0; pointer-events:none;
+  transition:opacity .16s ease,background .16s ease;
+}
+.preset-delete svg { display:block; width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+.preset-item:hover::after { opacity:1; }
+.preset-item:hover .preset-delete { opacity:1; pointer-events:auto; }
+.preset-delete:hover { background:#ffb6bc18; }
+.preset-item.delete-disabled::after { background:linear-gradient(90deg,transparent,rgba(160,170,180,.1) 35%,rgba(160,170,180,.24)); }
+.preset-delete:disabled { color:#8d99a6; cursor:not-allowed; background:transparent; }
+
+@media(prefers-reduced-motion:reduce) { .preset-item::after,.preset-delete { transition:none; } }
+
+/* Keyboard focus reveals only the delete action itself, never selected cards. */
+.preset-delete:focus-visible { opacity:1; pointer-events:auto; }
+
+.preset-card svg ellipse,.preset-card svg rect,.preset-card svg polygon{fill:#dce6ef}

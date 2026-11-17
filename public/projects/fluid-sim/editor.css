@@ -1,0 +1,19 @@
+.editor-overlay{position:fixed;inset:0;z-index:40;background:#05091400;transition:background .32s ease-out;display:flex;align-items:flex-end}
+.editor-overlay.open{background:#05091420}
+.obstacle-editor{width:100%;height:92dvh;border-radius:40px 40px 0 0;padding:28px 36px;background:linear-gradient(135deg,rgba(255,255,255,.10),rgba(255,255,255,.025)),rgba(18,24,34,.42);border:1px solid #ffffff30;box-shadow:0 16px 50px #0003,inset 0 1px 0 #ffffff30,inset 0 -1px 0 #ffffff0a;backdrop-filter:blur(24px) saturate(160%);-webkit-backdrop-filter:blur(24px) saturate(160%);transform:translateY(102%);transition:transform .36s cubic-bezier(.16,1,.3,1);display:flex;flex-direction:column}
+.open .obstacle-editor{transform:translateY(0)}
+.obstacle-editor header{display:flex;justify-content:space-between;flex-shrink:0}.obstacle-editor header button{font-size:24px;margin-left:10px;width:44px;height:44px}.obstacle-editor [data-action=apply]{color:#8ee6cd}
+.editor-stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:10px;overflow:hidden}
+.editor-stage svg{max-height:100%;max-width:100%;width:100%;background:#08132188;border:1px solid #ffffff20;border-radius:16px;touch-action:none}
+.editor-shape{fill:#dce6ef;cursor:move}.selection-frame{fill:none;stroke:#75ead1;stroke-width:2;vector-effect:non-scaling-stroke;pointer-events:none}.transform-handle{fill:#183f48;stroke:#a2ffea;stroke-width:2;cursor:nwse-resize}.transform-handle[data-handle=rotate]{cursor:grab}
+.obstacle-editor footer{display:flex;justify-content:center;gap:12px;padding-top:16px;flex-wrap:wrap}.obstacle-editor footer button{padding:10px 20px}.obstacle-editor button:disabled{opacity:.3;cursor:default}
+#editPreset{width:100%;margin-top:18px;background:#ffffff0c}
+@media(prefers-reduced-motion:reduce){.editor-overlay,.obstacle-editor{transition:none}}
+
+.shape-tools { display:flex; align-items:center; gap:4px; padding:5px; border:1px solid #ffffff30; border-radius:14px; background:#ffffff06; box-shadow:inset 0 1px 0 #ffffff12; }
+.obstacle-editor footer { align-items:center; gap:18px; }
+.obstacle-editor footer button { display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; padding:10px; }
+.shape-tools button { border-color:transparent; background:transparent; }
+.shape-tools button:hover { background:#ffffff12; }
+.obstacle-editor footer button svg { width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; pointer-events:none; }
+.obstacle-editor footer .shape-delete { color:#ffb6bc; border-color:#ffb6bc30; }

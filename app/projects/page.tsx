@@ -1,7 +1,17 @@
 const projects = [
   {
-    id: "project-01",
+    id: "fluid-sim",
     number: "01",
+    year: "2026",
+    title: "流体实验室",
+    category: "交互实验 / WebGL",
+    summary: "在浏览器中推动流体、注入颜料，观察它们如何绕过障碍物。",
+    detail: "基于 GPU 的二维流体模拟，支持速度场与颜料显示、可调物理参数，以及圆形、三角形和长方形障碍物的场景编辑。",
+    href: "https://zzyyio.github.io/projects/fluid-sim/",
+  },
+  {
+    id: "project-01",
+    number: "02",
     year: "2026",
     title: "移动中的档案",
     category: "数字体验 / 创意开发",
@@ -10,7 +20,7 @@ const projects = [
   },
   {
     id: "project-02",
-    number: "02",
+    number: "03",
     year: "2025",
     title: "光线索引",
     category: "出版物 / 摄影",
@@ -19,7 +29,7 @@ const projects = [
   },
   {
     id: "project-03",
-    number: "03",
+    number: "04",
     year: "2025",
     title: "缓慢界面",
     category: "研究 / 交互设计",
@@ -56,8 +66,8 @@ export default function ProjectsPage() {
               <h2>{project.title}</h2>
               <p className="project-summary">{project.summary}</p>
               <p>{project.detail}</p>
-              <a href={`#${project.id}-details`} id={`${project.id}-details`}>
-                项目详情筹备中 ↗
+              <a href={project.href ?? `#${project.id}-details`} id={`${project.id}-details`}>
+                {project.href ? "打开流体实验室 ↗" : "项目详情筹备中 ↗"}
               </a>
             </div>
           </article>
