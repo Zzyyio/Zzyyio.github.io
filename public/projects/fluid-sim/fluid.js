@@ -3,10 +3,10 @@ const canvas=document.querySelector('canvas'), error=document.querySelector('#er
 try {
 const gl=canvas.getContext('webgl2');
 if(!gl||!gl.getExtension('EXT_color_buffer_float'))throw Error('需要 WebGL2 和 EXT_color_buffer_float 支持。');
-const source=await fetch('fluid.glsl?v=uniform-grid-fix-1',{cache:'no-store'}).then(r=>{if(!r.ok)throw Error('无法加载 shader');return r.text()});
+const source=await fetch('fluid.glsl?v=fixed-scale-2',{cache:'no-store'}).then(r=>{if(!r.ok)throw Error('无法加载 shader');return r.text()});
 function shader(type,text){const s=gl.createShader(type);gl.shaderSource(s,text);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(s));return s;}
 const program=gl.createProgram();gl.attachShader(program,shader(gl.VERTEX_SHADER,'#version 300 es\nvoid main(){vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.-1.,0,1);}'));gl.attachShader(program,shader(gl.FRAGMENT_SHADER,source));gl.linkProgram(program);if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));gl.useProgram(program);gl.bindVertexArray(gl.createVertexArray());
-const loc=n=>gl.getUniformLocation(program,n);let w,h,velocity,dye,pressure,div,diffusionSource,curl,resources=[];
+const loc=n=>gl.getUniformLocation(program,n);let w,h,gridScale,velocity,dye,pressure,div,diffusionSource,curl,resources=[];
 function target(){const t=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,t);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA16F,w,h,0,gl.RGBA,gl.HALF_FLOAT,null);for(const k of [gl.TEXTURE_MIN_FILTER,gl.TEXTURE_MAG_FILTER])gl.texParameteri(gl.TEXTURE_2D,k,gl.NEAREST);for(const k of [gl.TEXTURE_WRAP_S,gl.TEXTURE_WRAP_T])gl.texParameteri(gl.TEXTURE_2D,k,gl.CLAMP_TO_EDGE);const f=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,f);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,t,0);if(gl.checkFramebufferStatus(gl.FRAMEBUFFER)!==gl.FRAMEBUFFER_COMPLETE)throw Error('浮点 framebuffer 不受支持');gl.clear(gl.COLOR_BUFFER_BIT);const out={t,f};resources.push(out);return out;}
 const obstacleTexture=gl.createTexture();let obstacleVersion=-1;
 function updateObstacles(){
@@ -19,14 +19,14 @@ function updateObstacles(){
  gl.uniform1i(loc('obstacles'),2);obstacleVersion=scene.version;
 }
 const pair=()=>[target(),target()];
-function reset(){for(const r of resources){gl.deleteTexture(r.t);gl.deleteFramebuffer(r.f)}resources=[];const ratio=canvas.clientWidth/canvas.clientHeight;w=Math.max(16,Math.round(number('resolution')*Math.min(ratio,1)));h=Math.max(16,Math.round(number('resolution')*Math.min(1/ratio,1)));velocity=pair();dye=pair();pressure=pair();div=target();diffusionSource=target();curl=target();updateObstacles();}
+function reset(){for(const r of resources){gl.deleteTexture(r.t);gl.deleteFramebuffer(r.f)}resources=[];const ratio=canvas.clientWidth/canvas.clientHeight;w=Math.max(16,Math.round(number('resolution')*Math.min(ratio,1)));h=Math.max(16,Math.round(number('resolution')*Math.min(1/ratio,1)));gridScale=[w/(256*Math.min(ratio,1)),h/(256*Math.min(1/ratio,1))];gl.uniform2f(loc('gridScale'),...gridScale);velocity=pair();dye=pair();pressure=pair();div=target();diffusionSource=target();curl=target();updateObstacles();}
 function pass(mode,out,a,b=a,display=false){gl.bindFramebuffer(gl.FRAMEBUFFER,out?.f??null);gl.viewport(0,0,display?canvas.width:w,display?canvas.height:h);gl.uniform2f(loc('size'),display?canvas.width:w,display?canvas.height:h);gl.uniform1i(loc('mode'),mode);[a,b].forEach((r,i)=>{gl.activeTexture(gl.TEXTURE0+i);gl.bindTexture(gl.TEXTURE_2D,r.t);gl.uniform1i(loc(i?'b':'a'),i)});gl.drawArrays(gl.TRIANGLES,0,3);}
 function swapPass(mode,p,b=p[0]){pass(mode,p[1],p[0],b);p.reverse()}
 const control=id=>document.getElementById(id);
 const number=id=>Number(control(id).value);
 for(const input of document.querySelectorAll('input[type=range]:not(#hueLow):not(#hueHigh)'))input.oninput=()=>{control(input.id+'Value').textContent=input.value};
 let pointer=null;
-const pos=e=>{const r=canvas.getBoundingClientRect();return [(e.clientX-r.left)/r.width*w,(1-(e.clientY-r.top)/r.height)*h]};
+const pos=e=>{const r=canvas.getBoundingClientRect();return [(e.clientX-r.left)/r.width*w/gridScale[0],(1-(e.clientY-r.top)/r.height)*h/gridScale[1]]};
 canvas.onpointerdown=e=>{if(pointer)return;canvas.setPointerCapture(e.pointerId);const p=pos(e);pointer={id:e.pointerId,p,previous:p}};
 canvas.onpointermove=e=>{if(pointer?.id===e.pointerId)pointer.p=pos(e)};
 canvas.onpointerup=canvas.onpointercancel=canvas.onlostpointercapture=e=>{if(pointer?.id===e.pointerId)pointer=null};
@@ -42,7 +42,7 @@ gl.uniform1f(loc('dt'),dt);gl.uniform1f(loc('decay'),number('velocityDecay'));sw
 if(pointer){const delta=pointer.p.map((v,i)=>(v-pointer.previous[i])/substeps);const steps=Math.max(1,Math.min(32,Math.ceil(Math.hypot(...delta)/Math.max(1,number('radius')*.5))));
 gl.uniform1f(loc('radius'),number('radius'));
 const hex=control('inkColor').value;const rgb=[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255);
-for(let i=1;i<=steps;i++){gl.uniform2f(loc('point'),...pointer.previous.map((v,k)=>v+delta[k]*(substep+i/steps)));gl.uniform2f(loc('force'),...delta.map(v=>Math.max(-180,Math.min(180,v*12))*number('strength')/steps));swapPass(1,velocity);gl.uniform3f(loc('ink'),...rgb.map(v=>v*number('amount')*dt/steps));swapPass(2,dye)}}
+for(let i=1;i<=steps;i++){gl.uniform2f(loc('point'),...pointer.previous.map((v,k)=>(v+delta[k]*(substep+i/steps))*gridScale[k]));gl.uniform2f(loc('force'),...delta.map((v,k)=>Math.max(-180,Math.min(180,v*12))*gridScale[k]*number('strength')/steps));swapPass(1,velocity);gl.uniform3f(loc('ink'),...rgb.map(v=>v*number('amount')*dt/steps));swapPass(2,dye)}}
 // Implicit velocity diffusion: (I - viscosity * dt * Laplacian) v = v0.
 if(number('viscosity')>0){pass(10,diffusionSource,velocity[0]);gl.uniform1f(loc('viscosity'),number('viscosity'));for(let i=0;i<40;i++)swapPass(9,velocity,diffusionSource);}
 // Add confinement before projection so its divergent component is removed.

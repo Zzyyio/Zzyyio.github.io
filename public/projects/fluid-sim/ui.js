@@ -54,14 +54,14 @@ toggle.addEventListener('click',()=>{
 
 // One floating tooltip outside the scrolling panel avoids clipping.
 const parameterHelp = {
- viscosity: '越大，速度差异越快被抹平，细小涡流越少。单位是格²/秒。',
+ viscosity: '越大，速度差异越快被抹平，细小涡流越少。单位是 256 分辨率下的基准格²/秒。',
  velocityDecay: '越大，流动停得越快。设为 0 可关闭额外的速度衰减。',
  vorticity: '增强卷曲和小涡流，让流动更丰富。设为 0 关闭。',
  timeScale: '调整模拟快慢：1 为正常速度，低于 1 慢放，高于 1 加速。',
  iterations: '越高，流体越接近不可压缩，但计算量也更大。',
  resolution: '越高，细节越丰富，GPU 开销越大。更改会清空当前流体。',
  dyeDecay: '越大，颜料淡去越快。设为 0 关闭额外消散。',
- radius: '控制画笔影响范围。越大，每次注入覆盖的区域越宽。',
+ radius: '控制画笔影响范围，以 256 分辨率下的格子为单位。切换分辨率时，画笔在画布上的尺寸保持一致。',
  strength: '控制拖动推动流体的力度。设为 0 时只注入颜料。',
  amount: '控制按住画笔时每秒注入的颜料量。越大，颜色越浓、越亮。',
  inkColor: '选择新注入颜料的颜色，不会改变已有颜料或速度场配色。',
