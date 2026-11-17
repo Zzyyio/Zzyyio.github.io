@@ -23,7 +23,20 @@
 <button type="button" data-mode="0" aria-pressed="true">速度场</button>
 <button type="button" data-mode="1" aria-pressed="false">颜料</button>
 </div>
+
+<!-- 
 <div id="hueSettings" class="hue-settings">
+
+<h2>画笔</h2>
+<div class="field">
+<label for="radius">半径</label>
+<span>
+<output id="radiusValue">9</output>
+<small>基准格</small>
+</span>
+<input id="radius" type="range" min="1" max="30" step="1" value="9">
+</div>
+
 <div class="hue-labels">
 <span>最低速度 <i id="lowSwatch">
 </i>
@@ -39,17 +52,11 @@
 <input id="hueHigh" aria-label="最高速度颜色" type="range" min="0" max="360" value="240">
 </div>
 
-<h2>画笔</h2>
-<div class="field">
-<label for="radius">半径</label>
-<span>
-<output id="radiusValue">9</output>
-<small>基准格</small>
-</span>
-<input id="radius" type="range" min="1" max="30" step="1" value="9">
-</div>
 
-</div>
+</div> -->
+
+
+<h2>模拟参数</h2>
 <div class="field">
 <label for="viscosity">粘度</label>
 <span>
@@ -100,7 +107,49 @@
 <option value="512">512 · 高清</option>
 </select>
 </div>
+
+
+
+
+
+<div id="hueSettings" class="hue-settings">
+
+<h2>画笔</h2>
+<div class="field">
+<label for="radius">半径</label>
+<span>
+<output id="radiusValue">9</output>
+<small>基准格</small>
+</span>
+<input id="radius" type="range" min="1" max="30" step="1" value="9">
+</div>
+
+<div class="hue-labels">
+<span>最低速度 <i id="lowSwatch">
+</i>
+</span>
+<span>最高速度 <i id="highSwatch">
+</i>
+</span>
+</div>
+<div class="hue-track">
+<div id="hueSelection">
+</div>
+<input id="hueLow" aria-label="最低速度颜色" type="range" min="0" max="360" value="0">
+<input id="hueHigh" aria-label="最高速度颜色" type="range" min="0" max="360" value="240">
+</div>
+
+</div>
+
+
+
+
+
+
+
 <section id="brushSettings" class="brush-settings" aria-hidden="true" inert>
+
+<h2>画笔</h2>
 <div class="brush-inner">
 <div class="field">
 <label for="dyeDecay">颜料消散</label>
@@ -110,8 +159,8 @@
 </span>
 <input id="dyeDecay" type="range" min="0" max="3" step="0.01" value="0.08">
 </div>
+</div>
 
-<h2>画笔</h2>
 <div class="field">
 <label for="radius">半径</label>
 <span>
@@ -144,6 +193,9 @@
 </div>
 </section>
 </aside>
+
+
+
 <aside class="panel" id="scenePanel" aria-label="障碍物场景预设">
   <header><h1>场景预设</h1><span>障碍物</span></header>
   <div class="preset-list" id="presetList" role="group" aria-label="预设列表"></div>
